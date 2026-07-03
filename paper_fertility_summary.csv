@@ -1,0 +1,4 @@
+tokenizer,fertility_tokens_per_word
+Russian-trained BPE vocab 900,1.39
+Character baseline,5.93
+English-centric byte-level,11.86
