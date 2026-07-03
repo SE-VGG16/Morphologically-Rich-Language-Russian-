@@ -60,14 +60,6 @@ Then open:
 http://localhost:8000
 ```
 
-## Make a shareable link with GitHub Pages
-
-1. Create a GitHub repository, for example `russian-tokenizer`.
-2. Upload all files in this folder.
-3. Go to **Settings → Pages**.
-4. Select **Deploy from branch**.
-5. Choose branch `main` and folder `/root`.
-6. Save.
 
 Your public demo link will look like:
 
