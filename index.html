@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Root, Suffix, or Byte — Tokenizing Russian</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700;800;900&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E7E9E3; --ink:#14181E; --ink-soft:#565C66; --line:#C7CBC2;
+  --card:#F4F5F1; --card-2:#FBFBF8;
+  --root:#B23A48; --root-bg:#f3dfe2; --root-line:#e2bcc2;
+  --end:#1B6E67;  --end-bg:#d8ebe8;  --end-line:#b6d8d3;
+  --byte:#A85A1E; --byte-bg:#f0e1d1; --byte-line:#e0c3a2;
+  --maxw:1080px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);
+  font-family:'PT Serif',Georgia,serif;line-height:1.6;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 26px;}
+a{color:inherit}
+.mono{font-family:'JetBrains Mono',monospace;}
+.sans{font-family:'Golos Text',system-ui,sans-serif;}
+
+/* ---------- top bar ---------- */
+.top{display:flex;justify-content:space-between;align-items:center;
+  padding:20px 26px;max-width:var(--maxw);margin:0 auto;}
+.brand{font-family:'Golos Text',sans-serif;font-weight:800;letter-spacing:-.02em;font-size:16px;}
+.brand .dot{color:var(--root)}
+.top nav{font-family:'Golos Text',sans-serif;font-size:13.5px;color:var(--ink-soft);display:flex;gap:22px;}
+.top nav a{text-decoration:none}
+.top nav a:hover{color:var(--ink)}
+@media(max-width:640px){.top nav{display:none}}
+
+/* ---------- hero ---------- */
+.hero{padding:36px 0 40px;}
+.eyebrow{font-family:'Golos Text',sans-serif;font-size:12px;font-weight:600;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--ink-soft);margin:0 0 20px;}
+.hero h1{font-family:'Golos Text',sans-serif;font-weight:900;letter-spacing:-.025em;
+  font-size:clamp(34px,6.4vw,66px);line-height:.98;margin:0 0 26px;max-width:15ch;}
+.split{display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:baseline;}
+.morph{font-family:'JetBrains Mono',monospace;font-weight:500;
+  font-size:clamp(20px,3.4vw,34px);padding:.12em .34em;border-radius:9px;
+  border:1px solid;transform:translateX(0);opacity:1;
+  transition:transform .7s cubic-bezier(.2,.8,.2,1),opacity .7s;}
+.morph.r{background:var(--root-bg);border-color:var(--root-line);color:#7d2530;}
+.morph.e{background:var(--end-bg);border-color:var(--end-line);color:#12514c;}
+.preload .morph.r{transform:translateX(46px)}
+.preload .morph.e{transform:translateX(-58px);opacity:0}
+.hero .lede{font-size:clamp(17px,2vw,20px);max-width:56ch;color:#2b3038;margin:0 0 30px;}
+.hero .lede b{color:var(--root);font-weight:700}
+.hero .lede i{color:var(--end);font-style:normal;font-weight:700}
+
+.stats{display:flex;gap:14px;flex-wrap:wrap;}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:16px 20px;min-width:150px;flex:1;}
+.stat .big{font-family:'Golos Text',sans-serif;font-weight:800;font-size:34px;
+  line-height:1;letter-spacing:-.02em;}
+.stat.byte .big{color:var(--byte)}
+.stat.morphs .big{color:var(--root)}
+.stat .cap{font-family:'Golos Text',sans-serif;font-size:12.5px;color:var(--ink-soft);
+  margin-top:8px;line-height:1.35;}
+
+/* ---------- section frame ---------- */
+.band{padding:52px 0;border-top:1px solid var(--line);}
+.band-head{display:flex;align-items:baseline;gap:14px;margin-bottom:6px;}
+.kicker{font-family:'Golos Text',sans-serif;font-size:12px;font-weight:600;
+  letter-spacing:.2em;text-transform:uppercase;color:var(--root);}
+.band h2{font-family:'Golos Text',sans-serif;font-weight:800;letter-spacing:-.02em;
+  font-size:clamp(24px,3.4vw,34px);margin:.15em 0 .35em;}
+.band .intro{max-width:60ch;color:#2b3038;font-size:17px;margin:0 0 30px;}
+
+/* ---------- interactive tokenizer ---------- */
+.tool{background:var(--card-2);border:1px solid var(--line);border-radius:18px;
+  padding:20px;box-shadow:0 1px 0 #fff inset;}
+.tool label.k{display:block;font-family:'Golos Text',sans-serif;font-size:11.5px;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ink-soft);
+  font-weight:600;margin-bottom:9px;}
+#inp{width:100%;border:none;background:transparent;resize:vertical;
+  font-family:'PT Serif',serif;font-size:22px;line-height:1.45;color:var(--ink);
+  min-height:60px;outline:none;}
+.tool .divider{height:1px;background:var(--line);margin:14px 0;}
+.lane{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:start;
+  padding:14px 0;}
+.lane + .lane{border-top:1px dashed var(--line);}
+.lane-name{font-family:'Golos Text',sans-serif;font-weight:600;font-size:14.5px;}
+.lane-name small{display:block;font-weight:400;color:var(--ink-soft);font-size:12.5px;margin-top:2px;}
+.metric{font-family:'JetBrains Mono',monospace;text-align:right;white-space:nowrap;}
+.metric b{font-size:26px;font-weight:700}
+.metric.byte b{color:var(--byte)}
+.metric span{display:block;font-size:10.5px;color:var(--ink-soft);letter-spacing:.05em;
+  font-family:'Golos Text',sans-serif;text-transform:uppercase;}
+.chips{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px;}
+.chip{font-family:'JetBrains Mono',monospace;font-size:14px;padding:5px 9px;border-radius:7px;
+  border:1px solid var(--line);background:#fff;white-space:pre;}
+.chip.r{background:var(--root-bg);border-color:var(--root-line);color:#7d2530}
+.chip.e{background:var(--end-bg);border-color:var(--end-line);color:#12514c}
+.chip.b{background:var(--byte-bg);border-color:var(--byte-line);color:#7c4114;font-size:12px;padding:4px 6px}
+.ratio{grid-column:1 / -1;font-family:'Golos Text',sans-serif;font-size:13px;
+  color:var(--byte);font-weight:600;margin-top:2px;}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-family:'Golos Text',sans-serif;
+  font-size:12.5px;color:var(--ink-soft);margin-top:16px;}
+.sw{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:5px}
+
+/* ---------- charts ---------- */
+.two{display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start;}
+@media(max-width:820px){.two{grid-template-columns:1fr}}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:22px;}
+.panel h3{font-family:'Golos Text',sans-serif;font-weight:700;font-size:18px;margin:0 0 4px}
+.panel p{font-size:15px;color:#2b3038;margin:0 0 18px}
+.bar-row{display:grid;grid-template-columns:96px 1fr;align-items:center;gap:12px;margin:11px 0}
+.bar-label{font-family:'Golos Text',sans-serif;font-size:13px;color:var(--ink-soft)}
+.bar-track{background:#e4e6e0;border-radius:7px;overflow:hidden;height:30px}
+.bar-fill{height:100%;width:var(--w);border-radius:7px;display:flex;align-items:center;justify-content:flex-end;
+  padding-right:9px;color:#fff;font-family:'JetBrains Mono',monospace;font-size:13px;
+  transition:width 1s cubic-bezier(.2,.8,.2,1);}
+.bar-fill.bpe{background:var(--end)}
+.bar-fill.char{background:#8a8f86}
+.bar-fill.byte{background:var(--byte)}
+.reveal .bar-fill{width:0}
+.curve{width:100%;height:auto;display:block}
+.curve .cline{fill:none;stroke:var(--ink);stroke-width:2.5}
+.curve circle{fill:var(--root);stroke:#fff;stroke-width:1.5}
+.curve .pt{font-family:'JetBrains Mono',monospace;font-size:11px;fill:var(--ink);text-anchor:middle}
+.curve .ax{font-family:'Golos Text',sans-serif;font-size:11px;fill:var(--ink-soft);text-anchor:middle}
+.curve .yax{text-anchor:end}
+.curve .axtitle{font-size:12px}
+.curve .grid{stroke:var(--line);stroke-width:1;stroke-dasharray:2 3}
+
+/* ---------- paradigm table ---------- */
+.ptable{width:100%;border-collapse:collapse;font-size:15px;margin-top:4px}
+.ptable thead th{font-family:'Golos Text',sans-serif;font-size:12px;letter-spacing:.04em;
+  text-transform:uppercase;color:var(--ink-soft);font-weight:600;text-align:right;
+  padding:10px 12px;border-bottom:2px solid var(--ink)}
+.ptable thead th.grp{text-align:center;color:var(--ink)}
+.ptable thead th:first-child{text-align:left}
+.ptable td{padding:9px 12px;border-bottom:1px solid var(--line)}
+.ptable td.lem{font-family:'JetBrains Mono',monospace;font-weight:500}
+.ptable td.num{text-align:right;font-family:'JetBrains Mono',monospace}
+.ptable td.dim{color:var(--ink-soft)}
+.ptable td.win{color:var(--end);font-weight:700}
+.grp-bpe{color:var(--root)!important}
+.grp-uni{color:var(--end)!important}
+.tnote{font-size:13.5px;color:var(--ink-soft);margin-top:14px;max-width:64ch}
+
+/* ---------- method steps ---------- */
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+@media(max-width:820px){.steps{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.steps{grid-template-columns:1fr}}
+.step{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.step .n{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--root);margin-bottom:10px}
+.step h4{font-family:'Golos Text',sans-serif;font-size:15.5px;margin:0 0 6px}
+.step p{font-size:14px;color:#2b3038;margin:0}
+
+/* ---------- footer ---------- */
+.foot{border-top:1px solid var(--line);padding:40px 0 60px;color:var(--ink-soft);font-size:14px}
+.foot .cols{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap}
+.foot h5{font-family:'Golos Text',sans-serif;color:var(--ink);font-size:13px;
+  letter-spacing:.08em;text-transform:uppercase;margin:0 0 10px}
+.foot a{color:var(--ink-soft);text-decoration:none;display:block;margin:5px 0}
+.foot a:hover{color:var(--root)}
+.disc{margin-top:26px;font-size:12.5px;max-width:70ch;line-height:1.6}
+
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important;animation:none!important}
+  .preload .morph{transform:none!important;opacity:1!important}
+}
+</style>
+</head>
+<body class="preload">
+
+<header class="top">
+  <div class="brand">морфо<span class="dot">·</span>токен</div>
+  <nav class="sans">
+    <a href="#try">Try it</a>
+    <a href="#findings">Findings</a>
+    <a href="#method">Method</a>
+    <a href="#paper">Paper</a>
+  </nav>
+</header>
+
+<main class="wrap">
+
+  <!-- HERO -->
+  <section class="hero">
+    <p class="eyebrow">Subword tokenization &middot; morphologically rich languages</p>
+    <h1 class="sans">Root, suffix,<br>or byte?</h1>
+    <div class="split" aria-label="the word domami splitting into root and ending">
+      <span class="morph r">дом</span><span class="morph e">ами</span>
+    </div>
+    <p class="lede">Russian packs grammar inside the word: one lemma appears in dozens of
+    inflected forms. A good tokenizer factors each form into a shared <b>root</b> plus a
+    short <i>ending</i> — instead of memorizing every form whole, or worse, shattering
+    Cyrillic into raw bytes. This page lets you watch a real tokenizer, trained from
+    scratch on Russian, make that choice live.</p>
+    <div class="stats">
+      <div class="stat byte">
+        <div class="big">8.6&times;</div>
+        <div class="cap">more tokens spent on the same Russian text by a tokenizer that never learned Cyrillic</div>
+      </div>
+      <div class="stat morphs">
+        <div class="big">6&ndash;9</div>
+        <div class="cap">surface forms per lemma in the test paradigms — one root, many endings</div>
+      </div>
+      <div class="stat">
+        <div class="big sans">900</div>
+        <div class="cap">learned subword vocabulary in the live model below</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIVE TOOL -->
+  <section class="band" id="try">
+    <div class="band-head"><span class="kicker">Live</span></div>
+    <h2 class="sans">Type Russian, watch it tokenize</h2>
+    <p class="intro">The tokenizer below is the actual trained model — its encoder was
+    reverse-checked against the reference implementation and reproduces it exactly. Roots
+    are shaded <span style="color:var(--root)">red</span>, endings
+    <span style="color:var(--end)">teal</span>. The second lane shows what a script-blind
+    byte-level tokenizer would pay.</p>
+
+    <div class="tool">
+      <label class="k" for="inp">Your text</label>
+      <textarea id="inp" spellcheck="false">Модель разбивает длинные слова на морфемы</textarea>
+      <div class="divider"></div>
+
+      <div class="lane">
+        <div class="lane-name">Russian-trained BPE <small>learned Cyrillic subwords &middot; vocab 900</small></div>
+        <div class="metric"><b id="ruF">&ndash;</b><span>tokens / word</span></div>
+        <div class="chips" id="ruChips"></div>
+      </div>
+
+      <div class="lane">
+        <div class="lane-name">English-centric byte-level <small>never learned Cyrillic → falls back to UTF-8 bytes</small></div>
+        <div class="metric byte"><b id="enF">&ndash;</b><span>tokens / word</span></div>
+        <div class="chips" id="enChips"></div>
+        <div class="ratio" id="ratio"></div>
+      </div>
+
+      <div class="legend">
+        <span><span class="sw" style="background:var(--root-bg);border:1px solid var(--root-line)"></span>root / word-initial piece</span>
+        <span><span class="sw" style="background:var(--end-bg);border:1px solid var(--end-line)"></span>ending / continuation</span>
+        <span><span class="sw" style="background:var(--byte-bg);border:1px solid var(--byte-line)"></span>raw byte</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINDINGS -->
+  <section class="band" id="findings">
+    <div class="band-head"><span class="kicker">Finding 01</span></div>
+    <h2 class="sans">Not knowing the script is the dominant cost</h2>
+    <p class="intro">Before any linguistics, a tokenizer that never learned Cyrillic
+    fragments Russian into bytes — and because every Cyrillic letter is two UTF-8 bytes,
+    it pays an order-of-magnitude premium over a tokenizer that learned the script.</p>
+    <div class="two">
+      <div class="panel" id="covPanel">
+        <h3 class="sans">Fertility by tokenizer</h3>
+        <p>Mean tokens per word on held-out Russian (lower is cheaper).</p>
+        <div class="bar-row">
+          <div class="bar-label">Russian BPE</div>
+          <div class="bar-track"><div class="bar-fill bpe" style="--w:11.7%"><span>1.39</span></div></div>
+        </div>
+<div class="bar-row">
+          <div class="bar-label">Character</div>
+          <div class="bar-track"><div class="bar-fill char" style="--w:50.0%"><span>5.93</span></div></div>
+        </div>
+<div class="bar-row">
+          <div class="bar-label">Byte-level</div>
+          <div class="bar-track"><div class="bar-fill byte" style="--w:100.0%"><span>11.86</span></div></div>
+        </div>
+      </div>
+      <div class="panel">
+        <h3 class="sans">Why it happens</h3>
+        <p style="margin-bottom:14px">The gap is two effects stacked:</p>
+        <p style="margin:0 0 12px"><b style="color:var(--byte)">×2 — encoding.</b> A byte-level
+        fallback spends two tokens per Cyrillic character before modeling anything.</p>
+        <p style="margin:0"><b style="color:var(--end)">×4.3 — subword learning.</b> Learned
+        merges pack characters into morpheme- and word-sized units, taking fertility from
+        5.93 down to 1.39. Together: an 8.6× coverage penalty that a Russian-specific
+        tokenizer erases outright.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="band">
+    <div class="band-head"><span class="kicker">Finding 02</span></div>
+    <h2 class="sans">Low fertility isn&rsquo;t morphological competence</h2>
+    <p class="intro">Give BPE a generous vocabulary and its fertility drops toward one
+    token per word — but it gets there by memorizing whole word-forms, not by isolating
+    morphemes. Unigram emits slightly more tokens yet reuses the root across a paradigm,
+    so it needs fewer distinct token <i>types</i> — the property that generalizes to
+    unseen forms.</p>
+    <div class="two">
+      <div class="panel">
+        <h3 class="sans">Fertility vs. vocabulary</h3>
+        <p>More vocabulary buys lower fertility — but see the table.</p>
+        <svg viewBox="0 0 560 240" class="curve" role="img" aria-label="Fertility falls as vocabulary grows">
+  <line class="grid" x1="44" x2="540" y1="186.4" y2="186.4"/><text class="ax yax" x="36" y="190.4">1.2</text><line class="grid" x1="44" x2="540" y1="129.1" y2="129.1"/><text class="ax yax" x="36" y="133.1">1.5</text><line class="grid" x1="44" x2="540" y1="71.8" y2="71.8"/><text class="ax yax" x="36" y="75.8">1.8</text><line class="grid" x1="44" x2="540" y1="33.6" y2="33.6"/><text class="ax yax" x="36" y="37.6">2.0</text>
+  <polyline class="cline" points="44.0,33.6 158.3,63.9 272.6,107.3 386.9,150.9 540.0,185.5"/>
+  <circle cx="44.0" cy="33.6" r="4.5"/><text class="pt" x="44.0" y="21.6">2.00</text><circle cx="158.3" cy="63.9" r="4.5"/><text class="pt" x="158.3" y="51.9">1.84</text><circle cx="272.6" cy="107.3" r="4.5"/><text class="pt" x="272.6" y="95.3">1.61</text><circle cx="386.9" cy="150.9" r="4.5"/><text class="pt" x="386.9" y="138.9">1.39</text><circle cx="540.0" cy="185.5" r="4.5"/><text class="pt" x="540.0" y="173.5">1.21</text>
+  <text class="ax" x="44.0" y="224">300</text><text class="ax" x="158.3" y="224">500</text><text class="ax" x="272.6" y="224">700</text><text class="ax" x="386.9" y="224">900</text><text class="ax" x="540.0" y="224">1168</text>
+  <text class="ax axtitle" x="292" y="238">BPE vocabulary size</text>
+</svg>
+      </div>
+      <div class="panel">
+        <h3 class="sans">Paradigm type-reuse</h3>
+        <p>Unique token <i>types</i> to cover a whole paradigm. Fewer is better; the winner is highlighted.</p>
+        <table class="ptable">
+          <thead>
+            <tr><th>Lemma</th><th>Forms</th>
+              <th class="grp grp-bpe" colspan="2">BPE-900</th>
+              <th class="grp grp-uni" colspan="2">Unigram</th></tr>
+            <tr><th></th><th></th><th>tok</th><th>types</th><th>tok</th><th>types</th></tr>
+          </thead>
+          <tbody><tr><td class="lem">дом</td><td class="num dim">9</td><td class="num dim">9</td><td class="num win">9</td><td class="num dim">14</td><td class="num ">10</td></tr>
+<tr><td class="lem">язык</td><td class="num dim">8</td><td class="num dim">8</td><td class="num ">8</td><td class="num dim">9</td><td class="num ">8</td></tr>
+<tr><td class="lem">читать</td><td class="num dim">8</td><td class="num dim">8</td><td class="num win">8</td><td class="num dim">14</td><td class="num ">11</td></tr>
+<tr><td class="lem">большой</td><td class="num dim">7</td><td class="num dim">15</td><td class="num ">10</td><td class="num dim">18</td><td class="num win">8</td></tr>
+<tr><td class="lem">модель</td><td class="num dim">6</td><td class="num dim">14</td><td class="num ">9</td><td class="num dim">15</td><td class="num ">9</td></tr></tbody>
+        </table>
+        <p class="tnote">For <span class="mono">дом</span>, BPE stores nine forms as nine
+        unrelated tokens (zero root sharing); Unigram peels off the endings and reuses the
+        stem.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- METHOD -->
+  <section class="band" id="method">
+    <div class="band-head"><span class="kicker">How it&rsquo;s built</span></div>
+    <h2 class="sans">A small, fully reproducible harness</h2>
+    <p class="intro">Everything here runs from raw text in seconds. The point isn&rsquo;t a
+    state-of-the-art tokenizer — it&rsquo;s an honest, legible measurement of two real
+    effects, on a corpus engineered to stress exactly them.</p>
+    <div class="steps">
+      <div class="step"><div class="n">01</div><h4 class="sans">Corpus</h4>
+        <p>4,017 words of Russian, dense in inflection: each lemma recurs across its full paradigm.</p></div>
+      <div class="step"><div class="n">02</div><h4 class="sans">Train</h4>
+        <p>BPE and Unigram trained from scratch — greedy compression vs. likelihood-based segmentation.</p></div>
+      <div class="step"><div class="n">03</div><h4 class="sans">Measure</h4>
+        <p>Fertility for cost; paradigm type-reuse for morphological generalization.</p></div>
+      <div class="step"><div class="n">04</div><h4 class="sans">Verify</h4>
+        <p>The model&rsquo;s encoder, reimplemented for the browser, matches the reference exactly.</p></div>
+    </div>
+  </section>
+
+  <!-- PAPER -->
+  <section class="band" id="paper">
+    <div class="band-head"><span class="kicker">Read on</span></div>
+    <h2 class="sans">The write-up</h2>
+    <p class="intro">The full study — corpus construction, tokenizer training, the
+    coverage-penalty and compression&ndash;morphology results, related work, and
+    limitations — is written up as a short preprint, with all scripts and the trained
+    tokenizer released alongside.</p>
+    <div class="stats">
+      <div class="stat"><div class="big sans" style="font-size:22px">Preprint (PDF)</div>
+        <div class="cap">Root, Suffix, or Byte? A reproducible study of subword tokenization for Russian.</div></div>
+      <div class="stat"><div class="big sans" style="font-size:22px">Reproducibility</div>
+        <div class="cap">Corpus generator, training &amp; evaluation scripts, trained models, figure code.</div></div>
+      <div class="stat"><div class="big sans" style="font-size:22px">Interactive model</div>
+        <div class="cap">This page — the trained BPE tokenizer, running in your browser.</div></div>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <div class="brand" style="margin-bottom:6px">морфо<span class="dot">·</span>токен</div>
+        <div style="max-width:34ch">A study of how subword tokenizers handle the morphology of Russian.</div>
+      </div>
+      <div>
+        <h5>Sections</h5>
+        <a href="#try">Try the tokenizer</a>
+        <a href="#findings">Findings</a>
+        <a href="#method">Method</a>
+        <a href="#paper">Paper &amp; code</a>
+      </div>
+    </div>
+    <p class="disc">The tokenizer is trained on a small, partly synthetic corpus, so the
+    absolute numbers are illustrative — but the mechanisms (the Cyrillic coverage penalty,
+    and the gap between compression and morphological segmentation) are real and match the
+    Russian-NLP literature. Root/ending shading marks word-initial vs. continuation pieces,
+    an approximation of morpheme boundaries rather than a linguistic parse.</p>
+  </div>
+</footer>
+
+<script>
+const MODEL = {"vocab": {"[UNK]": 0, ",": 1, "-": 2, ".": 3, ":": 4, "Г": 5, "Д": 6, "И": 7, "К": 8, "М": 9, "Н": 10, "Р": 11, "У": 12, "Х": 13, "Я": 14, "а": 15, "б": 16, "в": 17, "г": 18, "д": 19, "е": 20, "ж": 21, "з": 22, "и": 23, "й": 24, "к": 25, "л": 26, "м": 27, "н": 28, "о": 29, "п": 30, "р": 31, "с": 32, "т": 33, "у": 34, "ф": 35, "х": 36, "ц": 37, "ч": 38, "ш": 39, "щ": 40, "ы": 41, "ь": 42, "э": 43, "ю": 44, "я": 45, "ё": 46, "—": 47, "ра": 48, "ст": 49, "ро": 50, "ов": 51, "от": 52, "ет": 53, "ко": 54, "ни": 55, "ва": 56, "го": 57, "ом": 58, "ам": 59, "ем": 60, "уч": 61, "раб": 62, "то": 63, "ло": 64, "ей": 65, "ши": 66, "де": 67, "ла": 68, "про": 69, "из": 70, "зы": 71, "ор": 72, "ры": 73, "ен": 74, "ма": 75, "язы": 76, "ли": 77, "на": 78, "ек": 79, "ны": 80, "работ": 81, "бо": 82, "кры": 83, "лов": 84, "си": 85, "ть": 86, "откры": 87, "кы": 88, "ют": 89, "ер": 90, "ами": 91, "ой": 92, "слов": 93, "раз": 94, "стро": 95, "би": 96, "во": 97, "ми": 98, "об": 99, "са": 100, "та": 101, "язык": 102, "за": 103, "ль": 104, "мер": 105, "пи": 106, "су": 107, "нива": 108, "уча": 109, "ток": 110, "измер": 111, "работа": 112, "разби": 113, "разбива": 114, "гов": 115, "ся": 116, "внива": 117, "ита": 118, "мо": 119, "сра": 120, "чита": 121, "раба": 122, "дела": 123, "изуча": 124, "открыва": 125, "обраба": 126, "писа": 127, "измеря": 128, "говор": 129, "сравнива": 130, "ду": 131, "дом": 132, "ий": 133, "нов": 134, "ней": 135, "ста": 136, "ете": 137, "горо": 138, "бы": 139, "ик": 140, "мор": 141, "рен": 142, "сс": 143, "тек": 144, "ую": 145, "фф": 146, "шко": 147, "сто": 148, "стем": 149, "корен": 150, "учи": 151, "систем": 152, "суфф": 153, "дума": 154, "морф": 155, "корень": 156, "суффик": 157, "вши": 158, "ги": 159, "еш": 160, "ка": 161, "лу": 162, "щий": 163, "ющий": 164, "рам": 165, "токен": 166, "вший": 167, "ешь": 168, "бни": 169, "грам": 170, "ени": 171, "ебни": 172, "кни": 173, "оло": 174, "усс": 175, "че": 176, "отв": 177, "учебни": 178, "точ": 179, "лож": 180, "програм": 181, "маши": 182, "боль": 183, "вопро": 184, "зако": 185, "моде": 186, "нейро": 187, "текст": 188, "морфоло": 189, "морфологи": 190, "но": 191, "сет": 192, "ты": 193, "ответ": 194, "ах": 195, "глу": 196, "кра": 197, "рек": 198, "русс": 199, "слож": 200, "ум": 201, "ому": 202, "широ": 203, "стар": 204, "суффикс": 205, "чес": 206, "больш": 207, "морфологичес": 208, "глубо": 209, "краси": 210, "город": 211, "программ": 212, "ных": 213, "слова": 214, "школ": 215, "книг": 216, "вопрос": 217, "ые": 218, "ется": 219, "кой": 220, "ком": 221, "прост": 222, "учебник": 223, "красив": 224, "ные": 225, "быст": 226, "стол": 227, "машин": 228, "закон": 229, "модел": 230, "нейрон": 231, "ест": 232, "од": 233, "пр": 234, "ци": 235, "ча": 236, "ый": 237, "языкы": 238, "быстро": 239, "ая": 240, "ному": 241, "кое": 242, "кого": 243, "гор": 244, "ными": 245, "открыты": 246, "токени": 247, "русскы": 248, "широкы": 249, "старты": 250, "морфологическы": 251, "глубокы": 252, "кому": 253, "быстры": 254, "ви": 255, "ед": 256, "ить": 257, "ки": 258, "ку": 259, "ков": 260, "кую": 261, "лю": 262, "ля": 263, "мен": 264, "оро": 265, "пер": 266, "те": 267, "тся": 268, "ым": 269, "ых": 270, "ыми": 271, "это": 272, "рат": 273, "ние": 274, "год": 275, "той": 276, "заци": 277, "льных": 278, "кая": 279, "ения": 280, "при": 281, "токенизаци": 282, "ной": 283, "ную": 284, "рах": 285, "рая": 286, "лой": 287, "нах": 288, "ная": 289, "ный": 290, "ным": 291, "строя": 292, "языке": 293, "языков": 294, "языками": 295, "работают": 296, "разбивает": 297, "разбивать": 298, "читать": 299, "изучают": 300, "открывают": 301, "писать": 302, "измеряют": 303, "сравнивают": 304, "дома": 305, "новые": 306, "система": 307, "токены": 308, "точному": 309, "модели": 310, "ное": 311, "ного": 312, "школы": 313, "Горо": 314, "Дет": 315, "Из": 316, "Исс": 317, "Ком": 318, "Мо": 319, "На": 320, "Русс": 321, "Уч": 322, "Хоро": 323, "Язы": 324, "ак": 325, "ар": 326, "аде": 327, "ате": 328, "атой": 329, "альных": 330, "бла": 331, "бли": 332, "блю": 333, "вр": 334, "вными": 335, "вку": 336, "впер": 337, "гла": 338, "гатой": 339, "дн": 340, "до": 341, "дя": 342, "дый": 343, "дви": 344, "енива": 345, "еци": 346, "жет": 347, "жей": 348, "жна": 349, "жется": 350, "жест": 351, "ждый": 352, "зна": 353, "зво": 354, "имен": 355, "ивными": 356, "кс": 357, "кот": 358, "кло": 359, "кий": 360, "лек": 361, "лед": 362, "лжна": 363, "мы": 364, "мет": 365, "мно": 366, "менива": 367, "не": 368, "нча": 369, "нения": 370, "ое": 371, "око": 372, "ого": 373, "опи": 374, "орая": 375, "озво": 376, "пь": 377, "под": 378, "паде": 379, "пеци": 380, "позво": 381, "ре": 382, "сля": 383, "специ": 384, "ту": 385, "тую": 386, "тому": 387, "тки": 388, "трат": 389, "тивными": 390, "ука": 391, "фор": 392, "флек": 393, "ца": 394, "что": 395, "шест": 396, "шая": 397, "шние": 398, "щест": 399, "экс": 400, "яется": 401, "ёд": 402, "ёные": 403, "рается": 404, "сти": 405, "ство": 406, "родн": 407, "овате": 408, "отли": 409, "отек": 410, "нию": 411, "нима": 412, "вает": 413, "гора": 414, "голов": 415, "емы": 416, "емени": 417, "тое": 418, "того": 419, "шие": 420, "дель": 421, "деся": 422, "дению": 423, "лах": 424, "просто": 425, "языкой": 426, "ликов": 427, "лица": 428, "лишние": 429, "набо": 430, "наблю": 431, "накло": 432, "богатой": 433, "ться": 434, "ютер": 435, "слово": 436, "разных": 437, "разные": 438, "строем": 439, "библи": 440, "обменива": 441, "обликов": 442, "сах": 443, "тая": 444, "таки": 445, "сущест": 446, "учатся": 447, "измерени": 448, "работаем": 449, "разбиваем": 450, "модела": 451, "может": 452, "читаем": 453, "делаем": 454, "изучаем": 455, "открываем": 456, "обрабаем": 457, "обрабаты": 458, "писаем": 459, "измеряем": 460, "говорем": 461, "говорить": 462, "сравниваем": 463, "ставку": 464, "текста": 465, "учием": 466, "думаем": 467, "морфемы": 468, "как": 469, "каче": 470, "каждый": 471, "книго": 472, "учебника": 473, "ложения": 474, "программа": 475, "большие": 476, "морфологией": 477, "красиво": 478, "оды": 479, "одно": 480, "пред": 481, "чается": 482, "части": 483, "вите": 484, "курат": 485, "людя": 486, "ляет": 487, "меняется": 488, "перимен": 489, "этого": 490, "годар": 491, "принима": 492, "приставку": 493, "токенизации": 494, "токенизация": 495, "строятся": 496, "языковые": 497, "открываются": 498, "Город": 499, "Дети": 500, "Исслед": 501, "Компь": 502, "Модель": 503, "Наука": 504, "Русский": 505, "Учёные": 506, "Хорошая": 507, "Язык": 508, "аккурат": 509, "благодар": 510, "времени": 511, "вперёд": 512, "глаголов": 513, "должна": 514, "движется": 515, "жество": 516, "знаков": 517, "которая": 518, "мысля": 519, "методы": 520, "множество": 521, "нчание": 522, "окончание": 523, "опирается": 524, "подслова": 525, "падежей": 526, "позволяет": 527, "специальных": 528, "тратить": 529, "форм": 530, "флективными": 531, "чтобы": 532, "шесть": 533, "эксперимен": 534, "родном": 535, "ователи": 536, "отличается": 537, "отеки": 538, "десятки": 539, "наборах": 540, "наблюдению": 541, "наклонения": 542, "библиотеки": 543, "обмениваться": 544, "такие": 545, "существите": 546, "измерению": 547, "обрабатывает": 548, "качество": 549, "предложения": 550, "людям": 551, "принимать": 552, "Исследователи": 553, "Компьютер": 554, "аккуратно": 555, "благодаря": 556, "мыслями": 557, "эксперименту": 558, "существительных": 559, "му": 560, "рую": 561, "сете": 562, "вая": 563, "горы": 564, "горам": 565, "горах": 566, "проста": 567, "языком": 568, "языкое": 569, "языкого": 570, "языкому": 571, "работе": 572, "работи": 573, "работу": 574, "работы": 575, "работов": 576, "работом": 577, "работам": 578, "работей": 579, "работами": 580, "работой": 581, "открытой": 582, "открытую": 583, "открытому": 584, "открытое": 585, "открытого": 586, "открытая": 587, "слове": 588, "слови": 589, "слову": 590, "словы": 591, "словов": 592, "словом": 593, "словам": 594, "словей": 595, "словами": 596, "словой": 597, "словах": 598, "строл": 599, "строю": 600, "строет": 601, "строло": 602, "строла": 603, "строли": 604, "строть": 605, "строют": 606, "строете": 607, "строющий": 608, "стровший": 609, "строешь": 610, "языка": 611, "языки": 612, "языку": 613, "языкам": 614, "языкей": 615, "языкую": 616, "языках": 617, "языкая": 618, "работал": 619, "работах": 620, "работаю": 621, "работая": 622, "работает": 623, "работало": 624, "работала": 625, "работали": 626, "работать": 627, "работаете": 628, "работающий": 629, "работавший": 630, "работаешь": 631, "разбивал": 632, "разбиваю": 633, "разбивая": 634, "разбивало": 635, "разбивала": 636, "разбивали": 637, "разбивают": 638, "разбиваете": 639, "разбивающий": 640, "разбивавший": 641, "разбиваешь": 642, "читал": 643, "читаю": 644, "читая": 645, "читает": 646, "читало": 647, "читала": 648, "читали": 649, "читают": 650, "читаете": 651, "читающий": 652, "читавший": 653, "читаешь": 654, "делал": 655, "делаю": 656, "делая": 657, "делает": 658, "делало": 659, "делала": 660, "делали": 661, "делать": 662, "делают": 663, "делаете": 664, "делающий": 665, "делавший": 666, "делаешь": 667, "изучал": 668, "изучаю": 669, "изучая": 670, "изучает": 671, "изучало": 672, "изучала": 673, "изучали": 674, "изучать": 675, "изучаете": 676, "изучающий": 677, "изучавший": 678, "изучаешь": 679, "открывал": 680, "открываю": 681, "открывая": 682, "открывает": 683, "открывало": 684, "открывала": 685, "открывали": 686, "открывать": 687, "открываете": 688, "открывающий": 689, "открывавший": 690, "открываешь": 691, "обрабал": 692, "обрабаю": 693, "обрабая": 694, "обрабает": 695, "обрабало": 696, "обрабала": 697, "обрабали": 698, "обрабать": 699, "обрабают": 700, "обрабаете": 701, "обрабающий": 702, "обрабавший": 703, "обрабаешь": 704, "писал": 705, "писаю": 706, "писая": 707, "писает": 708, "писало": 709, "писала": 710, "писали": 711, "писают": 712, "писаете": 713, "писающий": 714, "писавший": 715, "писаешь": 716, "измерял": 717, "измеряю": 718, "измеряя": 719, "измеряет": 720, "измеряло": 721, "измеряла": 722, "измеряли": 723, "измерять": 724, "измеряете": 725, "измеряющий": 726, "измерявший": 727, "измеряешь": 728, "говорл": 729, "говорю": 730, "говоря": 731, "говорет": 732, "говорло": 733, "говорла": 734, "говорли": 735, "говорть": 736, "говорют": 737, "говорете": 738, "говорющий": 739, "говорвший": 740, "говорешь": 741, "сравнивал": 742, "сравниваю": 743, "сравнивая": 744, "сравнивает": 745, "сравнивало": 746, "сравнивала": 747, "сравнивали": 748, "сравнивать": 749, "сравниваете": 750, "сравнивающий": 751, "сравнивавший": 752, "сравниваешь": 753, "доме": 754, "доми": 755, "дому": 756, "домы": 757, "домов": 758, "домом": 759, "домам": 760, "домей": 761, "домами": 762, "домой": 763, "домах": 764, "новой": 765, "новую": 766, "новому": 767, "новый": 768, "новая": 769, "новым": 770, "новых": 771, "новыми": 772, "новое": 773, "нового": 774, "горов": 775, "горой": 776, "гором": 777, "городе": 778, "городу": 779, "городом": 780, "школа": 781, "школи": 782, "школов": 783, "школу": 784, "школой": 785, "школах": 786, "стола": 787, "столи": 788, "столов": 789, "столу": 790, "столой": 791, "столах": 792, "учил": 793, "учию": 794, "учия": 795, "учиет": 796, "учило": 797, "учила": 798, "учили": 799, "учить": 800, "учиют": 801, "учиете": 802, "учиющий": 803, "учивший": 804, "учиешь": 805, "системе": 806, "системи": 807, "систему": 808, "системы": 809, "системов": 810, "системом": 811, "системам": 812, "системей": 813, "системами": 814, "системой": 815, "системах": 816, "думал": 817, "думаю": 818, "думая": 819, "думает": 820, "думало": 821, "думала": 822, "думали": 823, "думать": 824, "думают": 825, "думаете": 826, "думающий": 827, "думавший": 828, "думаешь": 829, "кореньа": 830, "коренье": 831, "кореньи": 832, "кореньу": 833, "кореньы": 834, "кореньов": 835, "кореньом": 836, "кореньам": 837, "кореньей": 838, "кореньами": 839, "кореньой": 840, "кореньах": 841, "суффикси": 842, "суффикса": 843, "суффиксу": 844, "суффиксах": 845, "токена": 846, "токене": 847, "токену": 848, "токенов": 849, "токеном": 850, "токенам": 851, "токеней": 852, "токенами": 853, "токеной": 854, "токенах": 855, "книгов": 856, "книги": 857, "ответе": 858, "учебникы": 859, "учебникой": 860, "учебником": 861, "точных": 862, "точные": 863, "точными": 864, "точной": 865, "точную": 866, "точная": 867, "точный": 868, "точным": 869, "точное": 870, "точного": 871, "программи": 872, "машини": 873, "машина": 874, "машины": 875, "машинов": 876, "машиней": 877, "машинах": 878, "вопроси": 879, "вопроса": 880, "вопросу": 881, "вопросах": 882, "закони": 883, "закона": 884, "законы": 885, "законов": 886, "законей": 887, "законах": 888, "моделов": 889, "моделу": 890, "моделой": 891, "нейрони": 892, "нейрона": 893, "нейроны": 894, "нейронов": 895, "нейроней": 896, "нейронах": 897, "тексте": 898, "тексти": 899}, "merges": [["р", "а"], ["с", "т"], ["р", "о"], ["о", "в"], ["о", "т"], ["е", "т"], ["к", "о"], ["н", "и"], ["в", "а"], ["г", "о"], ["о", "м"], ["а", "м"], ["е", "м"], ["у", "ч"], ["ра", "б"], ["т", "о"], ["л", "о"], ["е", "й"], ["ш", "и"], ["д", "е"], ["л", "а"], ["п", "ро"], ["и", "з"], ["з", "ы"], ["о", "р"], ["р", "ы"], ["е", "н"], ["м", "а"], ["я", "зы"], ["л", "и"], ["н", "а"], ["е", "к"], ["н", "ы"], ["раб", "от"], ["б", "о"], ["к", "ры"], ["л", "ов"], ["с", "и"], ["т", "ь"], ["от", "кры"], ["к", "ы"], ["ю", "т"], ["е", "р"], ["ам", "и"], ["о", "й"], ["с", "лов"], ["ра", "з"], ["ст", "ро"], ["б", "и"], ["в", "о"], ["м", "и"], ["о", "б"], ["с", "а"], ["т", "а"], ["язы", "к"], ["з", "а"], ["л", "ь"], ["м", "ер"], ["п", "и"], ["с", "у"], ["ни", "ва"], ["уч", "а"], ["то", "к"], ["из", "мер"], ["работ", "а"], ["раз", "би"], ["разби", "ва"], ["г", "ов"], ["с", "я"], ["в", "нива"], ["и", "та"], ["м", "о"], ["с", "ра"], ["ч", "ита"], ["раб", "а"], ["де", "ла"], ["из", "уча"], ["откры", "ва"], ["об", "раба"], ["пи", "са"], ["измер", "я"], ["гов", "ор"], ["сра", "внива"], ["д", "у"], ["д", "ом"], ["и", "й"], ["н", "ов"], ["н", "ей"], ["ст", "а"], ["ет", "е"], ["го", "ро"], ["б", "ы"], ["и", "к"], ["м", "ор"], ["р", "ен"], ["с", "с"], ["т", "ек"], ["у", "ю"], ["ф", "ф"], ["ш", "ко"], ["ст", "о"], ["ст", "ем"], ["ко", "рен"], ["уч", "и"], ["си", "стем"], ["су", "фф"], ["ду", "ма"], ["мор", "ф"], ["корен", "ь"], ["суфф", "ик"], ["в", "ши"], ["г", "и"], ["е", "ш"], ["к", "а"], ["л", "у"], ["щ", "ий"], ["ю", "щий"], ["ра", "м"], ["ток", "ен"], ["вши", "й"], ["еш", "ь"], ["б", "ни"], ["г", "рам"], ["е", "ни"], ["е", "бни"], ["к", "ни"], ["о", "ло"], ["у", "сс"], ["ч", "е"], ["от", "в"], ["уч", "ебни"], ["то", "ч"], ["ло", "ж"], ["про", "грам"], ["ма", "ши"], ["бо", "ль"], ["во", "про"], ["за", "ко"], ["мо", "де"], ["ней", "ро"], ["тек", "ст"], ["морф", "оло"], ["морфоло", "ги"], ["н", "о"], ["с", "ет"], ["т", "ы"], ["отв", "ет"], ["а", "х"], ["г", "лу"], ["к", "ра"], ["р", "ек"], ["р", "усс"], ["с", "лож"], ["у", "м"], ["ом", "у"], ["ши", "ро"], ["ста", "р"], ["суффик", "с"], ["че", "с"], ["боль", "ш"], ["морфологи", "чес"], ["глу", "бо"], ["кра", "си"], ["горо", "д"], ["програм", "м"], ["ны", "х"], ["слов", "а"], ["шко", "л"], ["кни", "г"], ["вопро", "с"], ["ы", "е"], ["ет", "ся"], ["ко", "й"], ["ко", "м"], ["про", "ст"], ["учебни", "к"], ["краси", "в"], ["ны", "е"], ["бы", "ст"], ["сто", "л"], ["маши", "н"], ["зако", "н"], ["моде", "л"], ["нейро", "н"], ["е", "ст"], ["о", "д"], ["п", "р"], ["ц", "и"], ["ч", "а"], ["ы", "й"], ["язы", "кы"], ["бы", "стро"], ["а", "я"], ["н", "ому"], ["ко", "е"], ["ко", "го"], ["го", "р"], ["ны", "ми"], ["откры", "ты"], ["ток", "ени"], ["русс", "кы"], ["широ", "кы"], ["стар", "ты"], ["морфологичес", "кы"], ["глубо", "кы"], ["ком", "у"], ["быст", "ры"], ["в", "и"], ["е", "д"], ["и", "ть"], ["к", "и"], ["к", "у"], ["к", "ов"], ["к", "ую"], ["л", "ю"], ["л", "я"], ["м", "ен"], ["о", "ро"], ["п", "ер"], ["т", "е"], ["т", "ся"], ["ы", "м"], ["ы", "х"], ["ы", "ми"], ["э", "то"], ["ра", "т"], ["ни", "е"], ["го", "д"], ["то", "й"], ["за", "ци"], ["ль", "ных"], ["ка", "я"], ["ени", "я"], ["пр", "и"], ["токени", "заци"], ["н", "ой"], ["н", "ую"], ["ра", "х"], ["ра", "я"], ["ло", "й"], ["на", "х"], ["на", "я"], ["ны", "й"], ["ны", "м"], ["стро", "я"], ["язык", "е"], ["язык", "ов"], ["язык", "ами"], ["работа", "ют"], ["разбива", "ет"], ["разбива", "ть"], ["чита", "ть"], ["изуча", "ют"], ["открыва", "ют"], ["писа", "ть"], ["измеря", "ют"], ["сравнива", "ют"], ["дом", "а"], ["нов", "ые"], ["систем", "а"], ["токен", "ы"], ["точ", "ному"], ["моде", "ли"], ["но", "е"], ["но", "го"], ["школ", "ы"], ["Г", "оро"], ["Д", "ет"], ["И", "з"], ["И", "сс"], ["К", "ом"], ["М", "о"], ["Н", "а"], ["Р", "усс"], ["У", "ч"], ["Х", "оро"], ["Я", "зы"], ["а", "к"], ["а", "р"], ["а", "де"], ["а", "те"], ["а", "той"], ["а", "льных"], ["б", "ла"], ["б", "ли"], ["б", "лю"], ["в", "р"], ["в", "ными"], ["в", "ку"], ["в", "пер"], ["г", "ла"], ["г", "атой"], ["д", "н"], ["д", "о"], ["д", "я"], ["д", "ый"], ["д", "ви"], ["е", "нива"], ["е", "ци"], ["ж", "ет"], ["ж", "ей"], ["ж", "на"], ["ж", "ется"], ["ж", "ест"], ["ж", "дый"], ["з", "на"], ["з", "во"], ["и", "мен"], ["и", "вными"], ["к", "с"], ["к", "от"], ["к", "ло"], ["к", "ий"], ["л", "ек"], ["л", "ед"], ["л", "жна"], ["м", "ы"], ["м", "ет"], ["м", "но"], ["м", "енива"], ["н", "е"], ["н", "ча"], ["н", "ения"], ["о", "е"], ["о", "ко"], ["о", "го"], ["о", "пи"], ["о", "рая"], ["о", "зво"], ["п", "ь"], ["п", "од"], ["п", "аде"], ["п", "еци"], ["п", "озво"], ["р", "е"], ["с", "ля"], ["с", "пеци"], ["т", "у"], ["т", "ую"], ["т", "ому"], ["т", "ки"], ["т", "рат"], ["т", "ивными"], ["у", "ка"], ["ф", "ор"], ["ф", "лек"], ["ц", "а"], ["ч", "то"], ["ш", "ест"], ["ш", "ая"], ["ш", "ние"], ["щ", "ест"], ["э", "кс"], ["я", "ется"], ["ё", "д"], ["ё", "ные"], ["ра", "ется"], ["ст", "и"], ["ст", "во"], ["ро", "дн"], ["ов", "ате"], ["от", "ли"], ["от", "ек"], ["ни", "ю"], ["ни", "ма"], ["ва", "ет"], ["го", "ра"], ["го", "лов"], ["ем", "ы"], ["ем", "ени"], ["то", "е"], ["то", "го"], ["ши", "е"], ["де", "ль"], ["де", "ся"], ["де", "нию"], ["ла", "х"], ["про", "сто"], ["язы", "кой"], ["ли", "ков"], ["ли", "ца"], ["ли", "шние"], ["на", "бо"], ["на", "блю"], ["на", "кло"], ["бо", "гатой"], ["ть", "ся"], ["ют", "ер"], ["слов", "о"], ["раз", "ных"], ["раз", "ные"], ["стро", "ем"], ["би", "бли"], ["об", "менива"], ["об", "ликов"], ["са", "х"], ["та", "я"], ["та", "ки"], ["су", "щест"], ["уча", "тся"], ["измер", "ени"], ["работа", "ем"], ["разбива", "ем"], ["мо", "дела"], ["мо", "жет"], ["чита", "ем"], ["дела", "ем"], ["изуча", "ем"], ["открыва", "ем"], ["обраба", "ем"], ["обраба", "ты"], ["писа", "ем"], ["измеря", "ем"], ["говор", "ем"], ["говор", "ить"], ["сравнива", "ем"], ["ста", "вку"], ["тек", "ста"], ["учи", "ем"], ["дума", "ем"], ["морф", "емы"], ["ка", "к"], ["ка", "че"], ["ка", "ждый"], ["кни", "го"], ["учебни", "ка"], ["лож", "ения"], ["програм", "ма"], ["боль", "шие"], ["морфологи", "ей"], ["краси", "во"], ["од", "ы"], ["од", "но"], ["пр", "ед"], ["ча", "ется"], ["ча", "сти"], ["ви", "те"], ["ку", "рат"], ["лю", "дя"], ["ля", "ет"], ["мен", "яется"], ["пер", "имен"], ["это", "го"], ["год", "ар"], ["при", "нима"], ["при", "ставку"], ["токенизаци", "и"], ["токенизаци", "я"], ["строя", "тся"], ["языков", "ые"], ["открывают", "ся"], ["Горо", "д"], ["Дет", "и"], ["Исс", "лед"], ["Ком", "пь"], ["Мо", "дель"], ["На", "ука"], ["Русс", "кий"], ["Уч", "ёные"], ["Хоро", "шая"], ["Язы", "к"], ["ак", "курат"], ["бла", "годар"], ["вр", "емени"], ["впер", "ёд"], ["гла", "голов"], ["до", "лжна"], ["дви", "жется"], ["жест", "во"], ["зна", "ков"], ["кот", "орая"], ["мы", "сля"], ["мет", "оды"], ["мно", "жество"], ["нча", "ние"], ["око", "нчание"], ["опи", "рается"], ["под", "слова"], ["паде", "жей"], ["позво", "ляет"], ["специ", "альных"], ["трат", "ить"], ["фор", "м"], ["флек", "тивными"], ["что", "бы"], ["шест", "ь"], ["экс", "перимен"], ["родн", "ом"], ["овате", "ли"], ["отли", "чается"], ["отек", "и"], ["деся", "тки"], ["набо", "рах"], ["наблю", "дению"], ["накло", "нения"], ["библи", "отеки"], ["обменива", "ться"], ["таки", "е"], ["сущест", "вите"], ["измерени", "ю"], ["обрабаты", "вает"], ["каче", "ство"], ["пред", "ложения"], ["людя", "м"], ["принима", "ть"], ["Исслед", "ователи"], ["Компь", "ютер"], ["аккурат", "но"], ["благодар", "я"], ["мысля", "ми"], ["эксперимен", "ту"], ["существите", "льных"], ["м", "у"], ["р", "ую"], ["с", "ете"], ["ва", "я"], ["го", "ры"], ["го", "рам"], ["го", "рах"], ["про", "ста"], ["язы", "ком"], ["язы", "кое"], ["язы", "кого"], ["язы", "кому"], ["работ", "е"], ["работ", "и"], ["работ", "у"], ["работ", "ы"], ["работ", "ов"], ["работ", "ом"], ["работ", "ам"], ["работ", "ей"], ["работ", "ами"], ["работ", "ой"], ["откры", "той"], ["откры", "тую"], ["откры", "тому"], ["откры", "тое"], ["откры", "того"], ["откры", "тая"], ["слов", "е"], ["слов", "и"], ["слов", "у"], ["слов", "ы"], ["слов", "ов"], ["слов", "ом"], ["слов", "ам"], ["слов", "ей"], ["слов", "ами"], ["слов", "ой"], ["слов", "ах"], ["стро", "л"], ["стро", "ю"], ["стро", "ет"], ["стро", "ло"], ["стро", "ла"], ["стро", "ли"], ["стро", "ть"], ["стро", "ют"], ["стро", "ете"], ["стро", "ющий"], ["стро", "вший"], ["стро", "ешь"], ["язык", "а"], ["язык", "и"], ["язык", "у"], ["язык", "ам"], ["язык", "ей"], ["язык", "ую"], ["язык", "ах"], ["язык", "ая"], ["работа", "л"], ["работа", "х"], ["работа", "ю"], ["работа", "я"], ["работа", "ет"], ["работа", "ло"], ["работа", "ла"], ["работа", "ли"], ["работа", "ть"], ["работа", "ете"], ["работа", "ющий"], ["работа", "вший"], ["работа", "ешь"], ["разбива", "л"], ["разбива", "ю"], ["разбива", "я"], ["разбива", "ло"], ["разбива", "ла"], ["разбива", "ли"], ["разбива", "ют"], ["разбива", "ете"], ["разбива", "ющий"], ["разбива", "вший"], ["разбива", "ешь"], ["чита", "л"], ["чита", "ю"], ["чита", "я"], ["чита", "ет"], ["чита", "ло"], ["чита", "ла"], ["чита", "ли"], ["чита", "ют"], ["чита", "ете"], ["чита", "ющий"], ["чита", "вший"], ["чита", "ешь"], ["дела", "л"], ["дела", "ю"], ["дела", "я"], ["дела", "ет"], ["дела", "ло"], ["дела", "ла"], ["дела", "ли"], ["дела", "ть"], ["дела", "ют"], ["дела", "ете"], ["дела", "ющий"], ["дела", "вший"], ["дела", "ешь"], ["изуча", "л"], ["изуча", "ю"], ["изуча", "я"], ["изуча", "ет"], ["изуча", "ло"], ["изуча", "ла"], ["изуча", "ли"], ["изуча", "ть"], ["изуча", "ете"], ["изуча", "ющий"], ["изуча", "вший"], ["изуча", "ешь"], ["открыва", "л"], ["открыва", "ю"], ["открыва", "я"], ["открыва", "ет"], ["открыва", "ло"], ["открыва", "ла"], ["открыва", "ли"], ["открыва", "ть"], ["открыва", "ете"], ["открыва", "ющий"], ["открыва", "вший"], ["открыва", "ешь"], ["обраба", "л"], ["обраба", "ю"], ["обраба", "я"], ["обраба", "ет"], ["обраба", "ло"], ["обраба", "ла"], ["обраба", "ли"], ["обраба", "ть"], ["обраба", "ют"], ["обраба", "ете"], ["обраба", "ющий"], ["обраба", "вший"], ["обраба", "ешь"], ["писа", "л"], ["писа", "ю"], ["писа", "я"], ["писа", "ет"], ["писа", "ло"], ["писа", "ла"], ["писа", "ли"], ["писа", "ют"], ["писа", "ете"], ["писа", "ющий"], ["писа", "вший"], ["писа", "ешь"], ["измеря", "л"], ["измеря", "ю"], ["измеря", "я"], ["измеря", "ет"], ["измеря", "ло"], ["измеря", "ла"], ["измеря", "ли"], ["измеря", "ть"], ["измеря", "ете"], ["измеря", "ющий"], ["измеря", "вший"], ["измеря", "ешь"], ["говор", "л"], ["говор", "ю"], ["говор", "я"], ["говор", "ет"], ["говор", "ло"], ["говор", "ла"], ["говор", "ли"], ["говор", "ть"], ["говор", "ют"], ["говор", "ете"], ["говор", "ющий"], ["говор", "вший"], ["говор", "ешь"], ["сравнива", "л"], ["сравнива", "ю"], ["сравнива", "я"], ["сравнива", "ет"], ["сравнива", "ло"], ["сравнива", "ла"], ["сравнива", "ли"], ["сравнива", "ть"], ["сравнива", "ете"], ["сравнива", "ющий"], ["сравнива", "вший"], ["сравнива", "ешь"], ["дом", "е"], ["дом", "и"], ["дом", "у"], ["дом", "ы"], ["дом", "ов"], ["дом", "ом"], ["дом", "ам"], ["дом", "ей"], ["дом", "ами"], ["дом", "ой"], ["дом", "ах"], ["нов", "ой"], ["нов", "ую"], ["нов", "ому"], ["нов", "ый"], ["нов", "ая"], ["нов", "ым"], ["нов", "ых"], ["нов", "ыми"], ["нов", "ое"], ["нов", "ого"], ["горо", "в"], ["горо", "й"], ["горо", "м"], ["горо", "де"], ["горо", "ду"], ["горо", "дом"], ["шко", "ла"], ["шко", "ли"], ["шко", "лов"], ["шко", "лу"], ["шко", "лой"], ["шко", "лах"], ["сто", "ла"], ["сто", "ли"], ["сто", "лов"], ["сто", "лу"], ["сто", "лой"], ["сто", "лах"], ["учи", "л"], ["учи", "ю"], ["учи", "я"], ["учи", "ет"], ["учи", "ло"], ["учи", "ла"], ["учи", "ли"], ["учи", "ть"], ["учи", "ют"], ["учи", "ете"], ["учи", "ющий"], ["учи", "вший"], ["учи", "ешь"], ["систем", "е"], ["систем", "и"], ["систем", "у"], ["систем", "ы"], ["систем", "ов"], ["систем", "ом"], ["систем", "ам"], ["систем", "ей"], ["систем", "ами"], ["систем", "ой"], ["систем", "ах"], ["дума", "л"], ["дума", "ю"], ["дума", "я"], ["дума", "ет"], ["дума", "ло"], ["дума", "ла"], ["дума", "ли"], ["дума", "ть"], ["дума", "ют"], ["дума", "ете"], ["дума", "ющий"], ["дума", "вший"], ["дума", "ешь"], ["корень", "а"], ["корень", "е"], ["корень", "и"], ["корень", "у"], ["корень", "ы"], ["корень", "ов"], ["корень", "ом"], ["корень", "ам"], ["корень", "ей"], ["корень", "ами"], ["корень", "ой"], ["корень", "ах"], ["суффик", "си"], ["суффик", "са"], ["суффик", "су"], ["суффик", "сах"], ["токен", "а"], ["токен", "е"], ["токен", "у"], ["токен", "ов"], ["токен", "ом"], ["токен", "ам"], ["токен", "ей"], ["токен", "ами"], ["токен", "ой"], ["токен", "ах"], ["кни", "гов"], ["кни", "ги"], ["отв", "ете"], ["учебни", "кы"], ["учебни", "кой"], ["учебни", "ком"], ["точ", "ных"], ["точ", "ные"], ["точ", "ными"], ["точ", "ной"], ["точ", "ную"], ["точ", "ная"], ["точ", "ный"], ["точ", "ным"], ["точ", "ное"], ["точ", "ного"], ["програм", "ми"], ["маши", "ни"], ["маши", "на"], ["маши", "ны"], ["маши", "нов"], ["маши", "ней"], ["маши", "нах"], ["вопро", "си"], ["вопро", "са"], ["вопро", "су"], ["вопро", "сах"], ["зако", "ни"], ["зако", "на"], ["зако", "ны"], ["зако", "нов"], ["зако", "ней"], ["зако", "нах"], ["моде", "лов"], ["моде", "лу"], ["моде", "лой"], ["нейро", "ни"], ["нейро", "на"], ["нейро", "ны"], ["нейро", "нов"], ["нейро", "ней"], ["нейро", "нах"], ["текст", "е"], ["текст", "и"]]};
+const VOCAB = MODEL.vocab;
+const RANK = new Map();
+MODEL.merges.forEach((m,i)=>RANK.set(m[0]+"\u0001"+m[1], i));
+const enc = new TextEncoder();
+
+function pretokenize(t){return [...t.matchAll(/\p{L}+|\p{N}+|[^\s\p{L}\p{N}]+/gu)].map(m=>m[0]);}
+function bpeWord(w){
+  let s=[...w]; if(!s.length) return [];
+  while(true){
+    let best=Infinity,bi=-1;
+    for(let i=0;i<s.length-1;i++){const r=RANK.get(s[i]+"\u0001"+s[i+1]);if(r!==undefined&&r<best){best=r;bi=i;}}
+    if(bi<0)break;
+    s=s.slice(0,bi).concat(s[bi]+s[bi+1],s.slice(bi+2));
+  }
+  return s.map(x=> x in VOCAB ? x : "[UNK]");
+}
+function wordCount(t){const s=t.trim();return s?s.split(/\s+/).length:0;}
+
+const inp=document.getElementById('inp');
+function render(){
+  const text=inp.value, words=Math.max(1,wordCount(text));
+  // russian
+  const ru=document.getElementById('ruChips'); ru.innerHTML='';
+  let total=0;
+  for(const pt of pretokenize(text)){
+    const parts=bpeWord(pt); let first=true;
+    for(const p of parts){
+      const s=document.createElement('span');
+      s.className='chip '+(first?'r':'e'); s.textContent=p; ru.appendChild(s);
+      first=false; total++;
+    }
+  }
+  document.getElementById('ruF').textContent=(total/words).toFixed(2);
+  // byte-level
+  const en=document.getElementById('enChips'); en.innerHTML='';
+  const bytes=enc.encode(text);
+  [...bytes].slice(0,72).forEach(b=>{const s=document.createElement('span');
+    s.className='chip b';s.textContent='0x'+b.toString(16).padStart(2,'0');en.appendChild(s);});
+  if(bytes.length>72){const s=document.createElement('span');s.className='chip b';
+    s.textContent='+'+(bytes.length-72);en.appendChild(s);}
+  const enF=bytes.length/words;
+  document.getElementById('enF').textContent=enF.toFixed(2);
+  const ratio=enF/(total/words);
+  document.getElementById('ratio').textContent=isFinite(ratio)?
+    ('≈ '+ratio.toFixed(1)+'× more tokens for the same text'):'';
+}
+inp.addEventListener('input',render);
+render();
+
+// hero split-in
+requestAnimationFrame(()=>requestAnimationFrame(()=>document.body.classList.remove('preload')));
+
+// reveal bars on scroll
+const covPanel=document.getElementById('covPanel');
+if(covPanel){
+  covPanel.classList.add('reveal');
+  const io=new IntersectionObserver((es)=>{es.forEach(e=>{if(e.isIntersecting){
+    covPanel.classList.remove('reveal');io.disconnect();}});},{threshold:.35});
+  io.observe(covPanel);
+}
+</script>
+</body>
+</html>
