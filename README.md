@@ -67,13 +67,6 @@ Your public demo link will look like:
 https://YOUR_USERNAME.github.io/russian-tokenizer/
 ```
 
-## Suggested citation text for a paper
-
-```text
-We provide an interactive browser demo and reproducible scripts at:
-https://YOUR_USERNAME.github.io/russian-tokenizer/
-```
-
 ## Notes
 
 The corpus is intentionally small and partly synthetic. The goal is not to train a production tokenizer, but to make the coverage penalty and morphology/compression trade-off easy to inspect and reproduce.
